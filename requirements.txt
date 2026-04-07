@@ -1,7 +1,5 @@
-stable-audio-tools
-torch
-torchaudio
 einops
-numpy
+numpy<2.0
 aeiou
-flash_attn
+safetensors
+packaging

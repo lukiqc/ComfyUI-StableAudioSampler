@@ -1,1 +1,69 @@
+# Byte-compiled / cache
 __pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+*.pyd
+*.dll
+
+# Distribution / packaging
+.Python
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+wheels/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+pip-log.txt
+
+# Unit test / coverage
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# Virtual environments
+.env
+.env.*
+.venv
+venv/
+env/
+
+# Editors/IDEs
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+*.log
+
+# Node
+node_modules/
+
+# ComfyUI artifacts
+output/
+temp/
+
+# Large model files (keep folder, ignore weights)
+models/audio_checkpoints/*.safetensors
+models/audio_checkpoints/*.ckpt
+models/audio_checkpoints/*.pt
+models/audio_checkpoints/*.bin

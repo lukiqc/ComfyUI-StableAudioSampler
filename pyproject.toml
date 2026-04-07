@@ -3,7 +3,14 @@ name = "comfyui-stableaudiosampler"
 description = "Nodes: StableAudioSampler. Wraps the new Stable Audio Open Model in the sampler that dropped Jun 5th. See Github for Features"
 version = "1.0.0"
 license = "LICENSE"
-dependencies = ["stable-audio-tools"]
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "einops",
+    "safetensors",
+    "aeiou",
+    "packaging",
+    "numpy<2.0",
+]
 
 [project.urls]
 Repository = "https://github.com/lks-ai/ComfyUI-StableAudioSampler"

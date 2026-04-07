@@ -1,55 +1,95 @@
 import os, sys, json, gc
 import glob
 import typing as tp
+import io
 import numpy as np
-import torch
-import torchaudio
+
+# Core ML dependencies with helpful guidance if missing
+try:
+    import torch
+    import torchaudio
+except ImportError as e:
+    raise RuntimeError(
+        "StableAudioSampler requires PyTorch and Torchaudio. "
+        "Install the matching torch/torchaudio pair for your Python and CUDA/CPU. "
+        "See https://pytorch.org/get-started/locally/ and reinstall accordingly."
+    ) from e
+
 from einops import rearrange
 from safetensors.torch import load_file
 from torchaudio import transforms as T
 from aeiou.viz import audio_spectrogram_image
 
-from .util_dependencies import PackageDependencyChecker
 from .util_config import get_model_config
 
-# Add local stable-audio-tools to path
-def add_stable_audio_tools_path():
-    current_path = os.path.dirname(os.path.abspath(__file__))
-    # Updated path to point to custom-extensions
-    stable_audio_path = os.path.abspath(os.path.join(current_path, '../../custom-extensions/stable-audio-tools'))
-    if stable_audio_path not in sys.path:
-        sys.path.insert(0, stable_audio_path)
-        print(f"[comfyui-stable-audio-sampler, nodes.py, add_stable_audio_tools_path] Added stable-audio-tools path: {stable_audio_path}")
 
-add_stable_audio_tools_path()
+def _import_stable_audio_tools():
+    """Import stable_audio_tools, falling back to local custom-extensions path if needed."""
+    try:
+        from stable_audio_tools import get_pretrained_model, create_model_from_config  # type: ignore
+        from stable_audio_tools.inference.generation import (
+            generate_diffusion_cond, generate_diffusion_uncond,  # type: ignore
+        )
+        from stable_audio_tools.inference.utils import prepare_audio  # type: ignore
+        from stable_audio_tools.models.utils import load_ckpt_state_dict  # type: ignore
+        from stable_audio_tools.training.utils import copy_state_dict  # type: ignore
+        return (
+            get_pretrained_model,
+            create_model_from_config,
+            generate_diffusion_cond,
+            generate_diffusion_uncond,
+            prepare_audio,
+            load_ckpt_state_dict,
+            copy_state_dict,
+        )
+    except ImportError:
+        current_path = os.path.dirname(os.path.abspath(__file__))
+        stable_audio_path = os.path.abspath(
+            os.path.join(current_path, '../../custom-extensions/stable-audio-tools')
+        )
+        if os.path.isdir(stable_audio_path) and stable_audio_path not in sys.path:
+            sys.path.insert(0, stable_audio_path)
+            print(
+                f"[comfyui-stable-audio-sampler] Added local stable-audio-tools path: {stable_audio_path}"
+            )
+            try:
+                from stable_audio_tools import get_pretrained_model, create_model_from_config  # type: ignore
+                from stable_audio_tools.inference.generation import (
+                    generate_diffusion_cond, generate_diffusion_uncond,  # type: ignore
+                )
+                from stable_audio_tools.inference.utils import prepare_audio  # type: ignore
+                from stable_audio_tools.models.utils import load_ckpt_state_dict  # type: ignore
+                from stable_audio_tools.training.utils import copy_state_dict  # type: ignore
+                return (
+                    get_pretrained_model,
+                    create_model_from_config,
+                    generate_diffusion_cond,
+                    generate_diffusion_uncond,
+                    prepare_audio,
+                    load_ckpt_state_dict,
+                    copy_state_dict,
+                )
+            except ImportError as e:
+                raise ImportError(
+                    "stable_audio_tools not found. Install it via `pip install stable-audio-tools` "
+                    "or place the repo at custom-extensions/stable-audio-tools."
+                ) from e
+        else:
+            raise ImportError(
+                "stable_audio_tools not found. Install it via `pip install stable-audio-tools` "
+                "or place the repo at custom-extensions/stable-audio-tools."
+            )
 
-# Import stable-audio-tools after path modification
-from stable_audio_tools import get_pretrained_model, create_model_from_config
-from stable_audio_tools.inference.generation import generate_diffusion_cond, generate_diffusion_uncond
-from stable_audio_tools.inference.utils import prepare_audio
-from stable_audio_tools.models.utils import load_ckpt_state_dict
-from stable_audio_tools.training.utils import copy_state_dict
 
-# try:
-import torch
-import torchaudio
-from einops import rearrange
-from stable_audio_tools import get_pretrained_model
-from stable_audio_tools.inference.generation import generate_diffusion_cond
-import numpy as np
-from safetensors.torch import load_file
-from .util_config import get_model_config
-# from stable_audio_tools.models.factory import create_model_from_config
-# from stable_audio_tools.models.utils import load_ckpt_state_dict
-from stable_audio_tools import get_pretrained_model, create_model_from_config
-# from stable_audio_tools.inference.generation import generate_diffusion_cond
-from stable_audio_tools.models.utils import load_ckpt_state_dict
-
-from stable_audio_tools.inference.generation import generate_diffusion_cond, generate_diffusion_uncond
-from stable_audio_tools.inference.utils import prepare_audio
-from stable_audio_tools.training.utils import copy_state_dict
-from aeiou.viz import audio_spectrogram_image
-from torchaudio import transforms as T
+(
+    get_pretrained_model,
+    create_model_from_config,
+    generate_diffusion_cond,
+    generate_diffusion_uncond,
+    prepare_audio,
+    load_ckpt_state_dict,
+    copy_state_dict,
+) = _import_stable_audio_tools()
 # except ImportError as e:
 #     checker = PackageDependencyChecker()
 #     discrepancies = checker.check_version_discrepancies('requirements.txt')
@@ -135,7 +175,6 @@ def replace_variables(template, values_dict):
     result = re.sub(pattern, replacer, template)
     return result
 
-import io
 # def wav_bytes_to_tensor(wav_bytes: bytes, model, sample_rate) -> tp.Tuple[int, torch.Tensor]:
 #     # Load the audio data and sample rate using torchaudio
 #     audio_tensor, in_sr = torchaudio.load(io.BytesIO(wav_bytes))

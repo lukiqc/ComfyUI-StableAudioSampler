@@ -13,6 +13,23 @@ https://github.com/lks-ai/ComfyUI-StableAudioSampler/assets/163685473/5f43db75-c
 
 ## Installation
 
+### Python 3.12+ notes
+- Install a matching torch/torchaudio pair for your Python and CUDA/CPU from the official selector: https://pytorch.org/get-started/locally/
+- Then install this node’s lightweight deps: `pip install -r requirements.txt`.
+- Do not install `flash_attn` unless you know a compatible wheel exists for your platform; it’s optional.
+- `numpy<2.0` is used to reduce breakage with upstream audio/ML stacks on newer Python.
+
+### stable-audio-tools (local clone recommended)
+- A clean ComfyUI install does not include `stable-audio-tools`.
+- This node looks for it in two ways, in order:
+  1) Installed package `stable_audio_tools`
+  2) Local path fallback: `ComfyUI/custom-extensions/stable-audio-tools`
+
+Recommended for Python 3.12+:
+- Clone the repo into Comfy’s custom-extensions (from ComfyUI root):
+  - `git clone https://github.com/Stability-AI/stable-audio-tools.git custom-extensions/stable-audio-tools`
+- Avoid installing from PyPI on 3.12 due to older dependency pins.
+
 ### Download the Model and Config
 1. Go to [Stable Audio Open on HuggingFace](https://huggingface.co/stabilityai/stable-audio-open-1.0/tree/main/) and download the `model.safetensors` and `model.config.json` files.
 2. Place the files in the `models/audio_checkpoints` folder. If you don't have one, make one in your comfy folder.
