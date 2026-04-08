@@ -24,7 +24,40 @@ from .util_config import get_model_config
 
 
 def _import_stable_audio_tools():
-    """Import stable_audio_tools, falling back to local custom-extensions path if needed."""
+    """Import stable_audio_tools, preferring local custom-extensions clone to avoid PyPI pin issues."""
+    current_path = os.path.dirname(os.path.abspath(__file__))
+    stable_audio_path = os.path.abspath(
+        os.path.join(current_path, '../../custom-extensions/stable-audio-tools')
+    )
+
+    # Prefer local clone first
+    if os.path.isdir(stable_audio_path) and stable_audio_path not in sys.path:
+        sys.path.insert(0, stable_audio_path)
+        print(
+            f"[comfyui-stable-audio-sampler] Using local stable-audio-tools: {stable_audio_path}"
+        )
+        try:
+            from stable_audio_tools import get_pretrained_model, create_model_from_config  # type: ignore
+            from stable_audio_tools.inference.generation import (  # type: ignore
+                generate_diffusion_cond, generate_diffusion_uncond,
+            )
+            from stable_audio_tools.inference.utils import prepare_audio  # type: ignore
+            from stable_audio_tools.models.utils import load_ckpt_state_dict  # type: ignore
+            from stable_audio_tools.training.utils import copy_state_dict  # type: ignore
+            return (
+                get_pretrained_model,
+                create_model_from_config,
+                generate_diffusion_cond,
+                generate_diffusion_uncond,
+                prepare_audio,
+                load_ckpt_state_dict,
+                copy_state_dict,
+            )
+        except ImportError:
+            # Fall back to installed package
+            pass
+
+    # Try installed package
     try:
         from stable_audio_tools import get_pretrained_model, create_model_from_config  # type: ignore
         from stable_audio_tools.inference.generation import (
@@ -42,43 +75,11 @@ def _import_stable_audio_tools():
             load_ckpt_state_dict,
             copy_state_dict,
         )
-    except ImportError:
-        current_path = os.path.dirname(os.path.abspath(__file__))
-        stable_audio_path = os.path.abspath(
-            os.path.join(current_path, '../../custom-extensions/stable-audio-tools')
-        )
-        if os.path.isdir(stable_audio_path) and stable_audio_path not in sys.path:
-            sys.path.insert(0, stable_audio_path)
-            print(
-                f"[comfyui-stable-audio-sampler] Added local stable-audio-tools path: {stable_audio_path}"
-            )
-            try:
-                from stable_audio_tools import get_pretrained_model, create_model_from_config  # type: ignore
-                from stable_audio_tools.inference.generation import (
-                    generate_diffusion_cond, generate_diffusion_uncond,  # type: ignore
-                )
-                from stable_audio_tools.inference.utils import prepare_audio  # type: ignore
-                from stable_audio_tools.models.utils import load_ckpt_state_dict  # type: ignore
-                from stable_audio_tools.training.utils import copy_state_dict  # type: ignore
-                return (
-                    get_pretrained_model,
-                    create_model_from_config,
-                    generate_diffusion_cond,
-                    generate_diffusion_uncond,
-                    prepare_audio,
-                    load_ckpt_state_dict,
-                    copy_state_dict,
-                )
-            except ImportError as e:
-                raise ImportError(
-                    "stable_audio_tools not found. Install it via `pip install stable-audio-tools` "
-                    "or place the repo at custom-extensions/stable-audio-tools."
-                ) from e
-        else:
-            raise ImportError(
-                "stable_audio_tools not found. Install it via `pip install stable-audio-tools` "
-                "or place the repo at custom-extensions/stable-audio-tools."
-            )
+    except ImportError as e:
+        raise ImportError(
+            "stable_audio_tools not found. Clone it to custom-extensions/stable-audio-tools "
+            "or install via `pip install --no-deps stable-audio-tools` and add runtime deps manually."
+        ) from e
 
 
 (
