@@ -529,7 +529,7 @@ class StableAudioSampler:
             }
         }
 
-    RETURN_TYPES = (any, "INT", "IMAGE")
+    RETURN_TYPES = ("AUDIO", "INT", "IMAGE")
     RETURN_NAMES = ("audio", "sample_rate", "image")
     FUNCTION = "sample"
     OUTPUT_NODE = True
@@ -554,8 +554,21 @@ class StableAudioSampler:
             init_audio=audio,
             quantum=quantum
         )
+        # Convert int16 bytes to Comfy AUDIO payload {waveform [B,C,S] float32, sample_rate}
+        import numpy as _np
+        import torch as _torch
+        int16_arr = _np.frombuffer(audio_bytes, dtype=_np.int16)
+        if int16_arr.size == 0:
+            float_arr = _np.zeros((2, 0), dtype=_np.float32)
+        else:
+            chans = 2  # model outputs stereo per config
+            samples = int(int16_arr.size // chans)
+            float_arr = (int16_arr[:samples*chans].reshape(chans, samples).astype(_np.float32) / 32767.0)
+        waveform = _torch.from_numpy(float_arr).unsqueeze(0).contiguous()  # [1,C,S]
+        audio_payload = {"waveform": waveform, "sample_rate": int(sample_rate)}
+
         spectrograms = create_image_batch([spectrogram], 1)
-        return {"ui": {"paths": filepaths}, "result": (audio_bytes, sample_rate, spectrograms)}
+        return {"ui": {"paths": filepaths}, "result": (audio_payload, sample_rate, spectrograms)}
         #return (audio_bytes, sample_rate, spectrograms)
 
 class StableLoadAudioModel:
