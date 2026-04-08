@@ -6,7 +6,7 @@ import numpy as np
 
 from einops import rearrange
 from safetensors.torch import load_file
-from aeiou.viz import audio_spectrogram_image
+ 
 
 from .util_config import get_model_config
 
@@ -323,7 +323,7 @@ def generate_audio(cond_batch, steps, cfg_scale, sigma_min, sigma_max, sampler_t
     if save:
         filepaths = save_audio_files(output, sample_rate, save_prefix, counter, data=gendata)
 
-    spectrogram = audio_spectrogram_image(output, sample_rate=sample_rate)
+    spectrogram = make_spectrogram_image(output, sample_rate)
     
     audio_bytes = output.numpy().tobytes()
 
@@ -452,17 +452,55 @@ def save_audio_files(output, sample_rate, filename_prefix, counter, data=None, s
         counter += 1
     return filepaths
 
-from aeiou.viz import spectrogram_image
+def make_spectrogram_image(output_tensor, sample_rate):
+    try:
+        from aeiou.viz import audio_spectrogram_image  # type: ignore
+        return audio_spectrogram_image(output_tensor, sample_rate=sample_rate)
+    except Exception as e:
+        print("[comfyui-stable-audio-sampler] aeiou.viz unavailable; using basic waveform preview:", e)
+        try:
+            import numpy as np
+            from PIL import Image  # type: ignore
+            x = output_tensor.numpy()
+            if x.ndim == 2:
+                mono = np.mean(np.abs(x), axis=0)
+            else:
+                mono = np.abs(x).squeeze()
+            mono = mono.astype(np.float32)
+            maxv = np.max(mono) if mono.size else 1.0
+            mono = mono / (maxv + 1e-6)
+            width = min(1024, mono.shape[-1] if mono.size else 128)
+            idx = np.linspace(0, mono.shape[-1]-1, width).astype(int) if mono.size else np.arange(128)
+            vals = (mono[idx] * 127).astype(np.uint8) if mono.size else np.zeros(128, dtype=np.uint8)
+            h = 128
+            img = np.zeros((h, width), dtype=np.uint8)
+            for i, v in enumerate(vals):
+                img[h-1-v:, i] = 255
+            rgb = np.stack([img]*3, axis=-1)
+            return Image.fromarray(rgb)
+        except Exception as e2:
+            print("[comfyui-stable-audio-sampler] PIL fallback failed:", e2)
+            return None
 
 def create_image_batch(spectrograms, batch_size):
     import torch  # local import
+    import numpy as np
     images = []
     for spec in spectrograms:
-        im = spec.convert("RGB")  # Ensure image is in RGB format
-        im_tensor = torch.tensor(np.array(im))  # Convert to tensor, keeping the dimensions as (height, width, channels)
-        images.append(im_tensor)
-    batch_tensor = torch.stack(images)  # Stack images into a batch
-    return batch_tensor
+        arr = None
+        try:
+            from PIL import Image  # type: ignore
+            if spec is not None and isinstance(spec, Image.Image):
+                arr = np.array(spec.convert("RGB"))
+        except Exception:
+            pass
+        if arr is None:
+            try:
+                arr = np.array(spec)
+            except Exception:
+                arr = np.zeros((128, 128, 3), dtype=np.uint8)
+        images.append(torch.tensor(arr))
+    return torch.stack(images)
 
 class StableAudioSampler:
     def __init__(self):
