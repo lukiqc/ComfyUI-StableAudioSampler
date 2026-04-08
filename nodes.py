@@ -43,7 +43,6 @@ def _import_stable_audio_tools():
             )
             from stable_audio_tools.inference.utils import prepare_audio  # type: ignore
             from stable_audio_tools.models.utils import load_ckpt_state_dict  # type: ignore
-            from stable_audio_tools.training.utils import copy_state_dict  # type: ignore
             return (
                 get_pretrained_model,
                 create_model_from_config,
@@ -51,7 +50,6 @@ def _import_stable_audio_tools():
                 generate_diffusion_uncond,
                 prepare_audio,
                 load_ckpt_state_dict,
-                copy_state_dict,
             )
         except ImportError:
             # Fall back to installed package
@@ -65,7 +63,6 @@ def _import_stable_audio_tools():
         )
         from stable_audio_tools.inference.utils import prepare_audio  # type: ignore
         from stable_audio_tools.models.utils import load_ckpt_state_dict  # type: ignore
-        from stable_audio_tools.training.utils import copy_state_dict  # type: ignore
         return (
             get_pretrained_model,
             create_model_from_config,
@@ -73,7 +70,6 @@ def _import_stable_audio_tools():
             generate_diffusion_uncond,
             prepare_audio,
             load_ckpt_state_dict,
-            copy_state_dict,
         )
     except ImportError as e:
         raise ImportError(
@@ -89,7 +85,6 @@ def _import_stable_audio_tools():
     generate_diffusion_uncond,
     prepare_audio,
     load_ckpt_state_dict,
-    copy_state_dict,
 ) = _import_stable_audio_tools()
 # except ImportError as e:
 #     checker = PackageDependencyChecker()
@@ -393,9 +388,8 @@ def load_model(model_config=None, model_ckpt_path=None, pretrained_name=None, pr
         model = create_model_from_config(model_config)
 
         print(f"[comfyui-stable-audio-sampler, nodes.py, load_model] Loading model checkpoint from {model_ckpt_path}")
-        # Load checkpoint
-        copy_state_dict(model, load_ckpt_state_dict(model_ckpt_path))
-        #model.load_state_dict(load_ckpt_state_dict(model_ckpt_path))
+        # Load checkpoint (allow missing/unexpected keys for broader compatibility)
+        model.load_state_dict(load_ckpt_state_dict(model_ckpt_path), strict=False)
 
     sample_rate = model_config["sample_rate"]
     sample_size = model_config["sample_size"]
