@@ -303,8 +303,7 @@ def generate_audio(cond_batch, steps, cfg_scale, sigma_min, sigma_max, sampler_t
         seed=seed,
         batch_size=p_batch_size,
         init_noise_level=init_noise_level, 
-        init_audio=wt,
-        quantum=quantum
+        init_audio=wt
     )
     
     gendata = locals()
@@ -647,7 +646,7 @@ class StableAudioConditioning:
         return ((conditioning, batch_size), )
 
     @classmethod
-    def IS_CHANGED(s, image, string_field, int_field, float_field, print_to_screen):
+    def IS_CHANGED(s, **kwargs):
         return time.time()
 
 NODE_CLASS_MAPPINGS = {
