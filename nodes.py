@@ -23,8 +23,12 @@ from aeiou.viz import audio_spectrogram_image
 from .util_config import get_model_config
 
 
-def _import_stable_audio_tools():
-    """Import stable_audio_tools, preferring local custom-extensions clone to avoid PyPI pin issues."""
+def _get_sao():
+    """Lazily import stable_audio_tools when needed.
+    Prefers local custom-extensions clone to avoid PyPI pins. Returns
+    (get_pretrained_model, create_model_from_config, generate_diffusion_cond,
+     generate_diffusion_uncond, prepare_audio, load_ckpt_state_dict)
+    """
     current_path = os.path.dirname(os.path.abspath(__file__))
     stable_audio_path = os.path.abspath(
         os.path.join(current_path, '../../custom-extensions/stable-audio-tools')
@@ -77,15 +81,6 @@ def _import_stable_audio_tools():
             "or install via `pip install --no-deps stable-audio-tools` and add runtime deps manually."
         ) from e
 
-
-(
-    get_pretrained_model,
-    create_model_from_config,
-    generate_diffusion_cond,
-    generate_diffusion_uncond,
-    prepare_audio,
-    load_ckpt_state_dict,
-) = _import_stable_audio_tools()
 # except ImportError as e:
 #     checker = PackageDependencyChecker()
 #     discrepancies = checker.check_version_discrepancies('requirements.txt')
@@ -287,6 +282,15 @@ def generate_audio(cond_batch, steps, cfg_scale, sigma_min, sigma_max, sampler_t
     #     init_audio = (sample_rate, init_audio)
 
     wt = None if init_audio is None else wav_bytes_to_tensor(init_audio, model, sample_rate, sample_size)
+    (
+        get_pretrained_model,
+        create_model_from_config,
+        generate_diffusion_cond,
+        generate_diffusion_uncond,
+        prepare_audio,
+        load_ckpt_state_dict,
+    ) = _get_sao()
+
     output = generate_diffusion_cond(
         model,
         steps=steps,
@@ -343,24 +347,28 @@ def get_model(model_filename=None, config=None, repo=None, half_precision=False,
             else:
                 with open(config, 'r') as f:
                     model_config = json.load(f)
+            (_, create_model_from_config, _, _, _, load_ckpt_state_dict) = _get_sao()
             model = create_model_from_config(model_config)
             print(f"[comfyui-stable-audio-sampler, nodes.py, get_model] Model path: {model_path}")
             model.load_state_dict(load_ckpt_state_dict(model_path))
         else:
             repo_id = "stabilityai/stable-audio-open-1.0" if not repo else repo
             print(f"[comfyui-stable-audio-sampler, nodes.py, get_model] Loading pretrained model {repo_id}")
+            (get_pretrained_model, _, _, _, _, _) = _get_sao()
             model, model_config = get_pretrained_model(repo_id)
         sample_rate = model_config["sample_rate"]
         sample_size = model_config["sample_size"]
     elif repo:
         if repo == "stabilityai/stable-audio-open-1.0":
             print(f"[comfyui-stable-audio-sampler, nodes.py, get_model] Loading pretrained model {repo}")
+            (get_pretrained_model, _, _, _, _, _) = _get_sao()
             model, model_config = get_pretrained_model(repo)
         else:
             json_path = config or repo_path(repo, "model_config.json")
             model_path = repo_path(repo, "model.safetensors")
             with open(json_path) as f:
                 model_config = json.load(f)
+            (_, create_model_from_config, _, _, _, load_ckpt_state_dict) = _get_sao()
             model = create_model_from_config(model_config)
             model.load_state_dict(load_ckpt_state_dict(model_path), strict=False)
         sample_rate = model_config["sample_rate"]
@@ -381,10 +389,12 @@ def load_model(model_config=None, model_ckpt_path=None, pretrained_name=None, pr
     
     if pretrained_name is not None:
         print(f"[comfyui-stable-audio-sampler, nodes.py, load_model] Loading pretrained model {pretrained_name}")
+        (get_pretrained_model, _, _, _, _, _) = _get_sao()
         model, model_config = get_pretrained_model(pretrained_name)
 
     elif model_config is not None and model_ckpt_path is not None:
         print(f"[comfyui-stable-audio-sampler, nodes.py, load_model] Creating model from config")
+        (_, create_model_from_config, _, _, _, load_ckpt_state_dict) = _get_sao()
         model = create_model_from_config(model_config)
 
         print(f"[comfyui-stable-audio-sampler, nodes.py, load_model] Loading model checkpoint from {model_ckpt_path}")
@@ -396,6 +406,7 @@ def load_model(model_config=None, model_ckpt_path=None, pretrained_name=None, pr
 
     if pretransform_ckpt_path is not None:
         print(f"[comfyui-stable-audio-sampler, nodes.py, load_model] Loading pretransform checkpoint from {pretransform_ckpt_path}")
+        (_, _, _, _, _, load_ckpt_state_dict) = _get_sao()
         model.pretransform.load_state_dict(load_ckpt_state_dict(pretransform_ckpt_path), strict=False)
         print(f"[comfyui-stable-audio-sampler, nodes.py, load_model] Done loading pretransform")
 
