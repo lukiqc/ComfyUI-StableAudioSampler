@@ -4,20 +4,8 @@ import typing as tp
 import io
 import numpy as np
 
-# Core ML dependencies with helpful guidance if missing
-try:
-    import torch
-    import torchaudio
-except ImportError as e:
-    raise RuntimeError(
-        "StableAudioSampler requires PyTorch and Torchaudio. "
-        "Install the matching torch/torchaudio pair for your Python and CUDA/CPU. "
-        "See https://pytorch.org/get-started/locally/ and reinstall accordingly."
-    ) from e
-
 from einops import rearrange
 from safetensors.torch import load_file
-from torchaudio import transforms as T
 from aeiou.viz import audio_spectrogram_image
 
 from .util_config import get_model_config
@@ -118,11 +106,17 @@ add_comfy_path()
 from comfy.utils import ProgressBar # type: ignore
 import folder_paths # type: ignore
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
 MAX_FP32 = np.iinfo(np.int32).max
 SCHEDULERS = ["dpmpp-3m-sde", "dpmpp-2m-sde", "k-heun", "k-lms", "k-dpmpp-2s-ancestral", "k-dpm-2", "k-dpm-fast"]
 ACKPT_FOLDER = "models/audio_checkpoints/"
 TEMP_FOLDER = "temp/"
+
+def get_device():
+    try:
+        import torch  # type: ignore
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    except Exception:
+        return "cpu"
 
 class AnyType(str):
     def __ne__(self, __value: object) -> bool:
@@ -187,7 +181,10 @@ def replace_variables(template, values_dict):
 #     print("Retyped", audio_tensor)
 #     return sample_rate, audio_tensor
 
-def wav_bytes_to_tensor(wav_bytes: tp.Union[bytes, dict], model, sample_rate, sample_size: int) -> tp.Tuple[int, torch.Tensor]:
+def wav_bytes_to_tensor(wav_bytes: tp.Union[bytes, dict], model, sample_rate, sample_size: int):
+    import torch  # local import
+    import torchaudio  # local import
+    from torchaudio import transforms as T
     # Handle dictionary input case
     if isinstance(wav_bytes, dict):
         if 'waveform' in wav_bytes:
@@ -241,6 +238,7 @@ def wav_bytes_to_tensor(wav_bytes: tp.Union[bytes, dict], model, sample_rate, sa
 
 
 def generate_audio(cond_batch, steps, cfg_scale, sigma_min, sigma_max, sampler_type, device, save, save_prefix, modelinfo, batch_size=1, seed=-1, after_generate="randomize", counter=0, init_noise_level=1.0, init_audio=None, quantum=True):
+    import torch  # local import
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     gc.collect()
@@ -376,10 +374,11 @@ def get_model(model_filename=None, config=None, repo=None, half_precision=False,
     else:
         raise ValueError("You must specify an Audio Checkpoint or a Repo to load from.")
     
-    _device = device if not device_override else device_override
+    _device = (get_device() if not device_override else device_override)
     model = model.to(_device).requires_grad_(False) #.eval().requires_grad_(False)
     
     if half_precision and _device != "cpu":
+        import torch  # local import
         model.to(torch.float16)
     
     return (model, sample_rate, sample_size, _device)
@@ -413,6 +412,7 @@ def load_model(model_config=None, model_ckpt_path=None, pretrained_name=None, pr
     model.to(device).eval().requires_grad_(False)
 
     if model_half:
+        import torch  # local import
         model.to(torch.float16)
         
     print(f"[comfyui-stable-audio-sampler, nodes.py, load_model] Done loading model")
@@ -423,6 +423,7 @@ import shutil
 from urllib.parse import quote
 def save_audio_files(output, sample_rate, filename_prefix, counter, data=None, save_temp=True):
     from datetime import datetime
+    import torchaudio  # local import
     
     filename_prefix += ""
     output_dir = "output"
@@ -454,6 +455,7 @@ def save_audio_files(output, sample_rate, filename_prefix, counter, data=None, s
 from aeiou.viz import spectrogram_image
 
 def create_image_batch(spectrograms, batch_size):
+    import torch  # local import
     images = []
     for spec in spectrograms:
         im = spec.convert("RGB")  # Ensure image is in RGB format
@@ -505,7 +507,7 @@ class StableAudioSampler:
             sigma_min, 
             sigma_max, 
             sampler_type, 
-            device, 
+            get_device(), 
             save, 
             save_prefix, 
             audio_model, 
