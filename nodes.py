@@ -522,7 +522,6 @@ class StableAudioSampler:
                 "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 20.0, "step": 0.01}),
                 "save": ("BOOLEAN", {"default": True}),
                 "save_prefix": ("STRING", {"default": "{prompt}-{seed}-{cfg_scale}-{steps}-{sigma_min}"}),
-                "quantum": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "audio": (any, )
@@ -536,7 +535,7 @@ class StableAudioSampler:
 
     CATEGORY = "audio/samplers"
 
-    def sample(self, audio_model, positive, negative, seed, steps, cfg_scale, sigma_min, sigma_max, sampler_type, denoise, save, save_prefix, quantum=True, audio=None):
+    def sample(self, audio_model, positive, negative, seed, steps, cfg_scale, sigma_min, sigma_max, sampler_type, denoise, save, save_prefix, audio=None):
         audio_bytes, sample_rate, spectrogram, filepaths = generate_audio(
             (positive, negative), 
             steps, 
@@ -551,8 +550,7 @@ class StableAudioSampler:
             seed=seed, 
             counter=self.counter, 
             init_noise_level=denoise, 
-            init_audio=audio,
-            quantum=quantum
+            init_audio=audio
         )
         # Convert int16 bytes to Comfy AUDIO payload {waveform [B,C,S] float32, sample_rate}
         import numpy as _np
